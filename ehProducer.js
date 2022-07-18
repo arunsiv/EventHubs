@@ -47,7 +47,7 @@ async function mainWithPartkey() {
     let message = [
         {
             specversion: "1.0",
-            type: "11111",
+            type: "44444",
             entityID: "00000",
             id: "1234-5678-90",
             data: {

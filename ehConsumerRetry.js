@@ -7,6 +7,20 @@ const containerName = "espcontainder";
 const eventHubConnectionString = "Endpoint=sb://esp-eh.servicebus.windows.net/;SharedAccessKeyName=myconn;SharedAccessKey=80TMSSezWOd3lGbYCp38jNM5vN34SfmRouky1UsYBXg=";
 const consumerGroup = "$Default";
 const eventHubName = "myeventhub";
+const messageId = 5142
+
+async function processMessage(partitionId, messageId, message) {
+  console.log(`processMessage from partition: ${partitionId};Message: ${JSON.stringify(message)}`);
+  //console.log(`${messageId}===${message[0].sequenceNumber};${messageId===message[0].sequenceNumber}`);
+
+  return new Promise((resolve, reject) => {
+    if (messageId === message[0].sequenceNumber) {
+      resolve('resolved');
+    } else {
+      reject('rejected');
+    }
+  });
+};
 
 async function main() {
   const client = new EventHubConsumerClient(
@@ -19,11 +33,11 @@ async function main() {
   // Other common options to configure would be `maxBatchSize` and `maxWaitTimeInSeconds`
   const subscriptionOptions = {
     maxBatchSize: 1,
-    maxWaitTimeInSeconds: 1,
-    trackLastEnqueuedEventProperties: true, 
+    maxWaitTimeInSeconds: 10,
+    trackLastEnqueuedEventProperties: true,
     startPosition: {
       isInclusive: true,
-      sequenceNumber: 5137
+      sequenceNumber: 5140
     }
   };
 
@@ -50,31 +64,39 @@ async function main() {
           return;
         }
 
-        console.log(`Partition Id: ${context.partitionId};Message: ${JSON.stringify(events)}`);
+        //console.log(`Partition Id: ${context.partitionId};Message: ${JSON.stringify(events)}`);
+        //const result = await processMessage(context.partitionId, messageId, JSON.stringify(events));
+
+        processMessage(context.partitionId, messageId, events).then((result) => {
+          console.log(`*** sequence number matched - ${result} ***`);
+          subscription.close();
+          client.close();
+        }, ((error) => {
+          console.log(`*** sequence number did not match - ${error} ****`);
+        }));
+
+        console.log(`*** after processing message ***`);
       },
       processError: async (err, context) => {
         // error reporting/handling code here
         console.log(`Errors in subscription to partition ${context.partitionId}: ${err}`);
       },
       processClose: async () => {
-        console.log(`process close`);
+        console.log(`Process close`);
       },
       processInitialize: async () => {
-        console.log(`process initialize`);
+        console.log(`Process initialize`);
       }
     },
     subscriptionOptions
   );
 
-  // await subscription.close();
-  // await client.close();
-
-  //Wait for a few seconds to receive events before closing
-  setTimeout(async () => {
-    await subscription.close();
-    await client.close();
-    console.log(`Exiting sample`);
-  }, 1 * 1000);
+  // Wait for a few seconds to receive events before closing
+  // setTimeout(async () => {
+  //   await subscription.close();
+  //   await client.close();
+  //   console.log(`Exiting sample`);
+  // }, 1 * 500);
 }
 
 main();

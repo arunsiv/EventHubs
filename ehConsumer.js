@@ -1,6 +1,7 @@
 const { EventHubConsumerClient } = require("@azure/event-hubs");
 const { ContainerClient } = require("@azure/storage-blob");
 const { BlobCheckpointStore } = require("@azure/eventhubs-checkpointstore-blob");
+const { processMessage } = require("./processMessage");
 
 const storageAccountConnectionString = "DefaultEndpointsProtocol=https;AccountName=espsablob;AccountKey=ycld0QgB+JdMLg6hQi9PyUAsJ0tyNBywE6wbsNK4ZB72P8Spw40mrBFcqoWvXLcJ0OeV3OOpyL3w+AStNxTxew==;EndpointSuffix=core.windows.net";
 const containerName = "espcontainder";
@@ -9,20 +10,13 @@ const consumerGroup = "$Default";
 const eventHubName = "myeventhub";
 
 async function main() {
-  console.log("connecting to SA");
   const blobContainerClient = new ContainerClient(storageAccountConnectionString, containerName);
-
-  console.log("2: " + blobContainerClient);
 
   if (!(await blobContainerClient.exists())) {
     await blobContainerClient.create();
   }
 
-  console.log("connected to SA");
-
   const checkpointStore = new BlobCheckpointStore(blobContainerClient);
-  console.log("checkpointStore" + checkpointStore);
-
   const consumerClient = new EventHubConsumerClient(
     consumerGroup,
     eventHubConnectionString,
@@ -30,7 +24,7 @@ async function main() {
     checkpointStore
   );
 
-  console.log("Connected to EH: " + consumerClient);
+  console.log(`Connected to EH...`);
 
   const subscription = consumerClient.subscribe({
     processEvents: async (events, context) => {
@@ -41,19 +35,17 @@ async function main() {
         return;
       }
 
-      console.log(`Partition Id: ${context.partitionId};Message: ${JSON.stringify(events)}`);
+      //console.log(`Partition Id: ${context.partitionId};Message: ${JSON.stringify(events)}`);
+      const result = await processMessage(context.partitionId, JSON.stringify(events));
+      console.log(`*** after processMessage ***`);
 
-      // Checkpointing will allow your service to pick up from
-      // where it left off when restarting.
-      //
-      // You'll want to balance how often you checkpoint with the
-      // performance of your underlying checkpoint store.
+      // Checkpointing will allow your service to pick up from where it left off when restarting.
+      // You'll want to balance how often you checkpoint with the performance of your underlying checkpoint store.
       await context.updateCheckpoint(events[events.length - 1]);
     },
     processError: async (err, context) => {
-      // handle any errors that occur during the course of
-      // this subscription
-      console.log(`Errors in subscription to partition ${context.partitionId}: ${err}`);
+      // handle any errors that occur during the course of this subscription
+      console.log(`Errors in subscription to partition ${context.partitionId}; ${err}`);
     }
   });
 
